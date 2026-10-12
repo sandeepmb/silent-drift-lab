@@ -52,14 +52,17 @@ def make_task(model: str | None = None, temperature: float | None = None):
     """
     Build the evaluation task around the app's grade_answer().
 
-    quiz_generator reads MODEL_NAME at call time, so a model swap is one
-    attribute; the grading temperature is hard-coded (0.1) inside grade_answer,
+    grade_answer() reads the grader model at call time (DRIFT_GRADER_MODEL hook),
+    so a model swap is one env var; the grading temperature is hard-coded (0.1) inside grade_answer,
     so a temperature variant wraps the ChatOllama class it instantiates.
     """
     from agents import quiz_generator as qg
 
     if model:
         qg.MODEL_NAME = model
+        # grade_answer() reads the grader model at call time through the drift hook
+        # (DRIFT_GRADER_MODEL, else OLLAMA_MODEL), so the swap must go through the env.
+        os.environ["DRIFT_GRADER_MODEL"] = model
     if temperature is not None:
         real_cls = qg.ChatOllama
 

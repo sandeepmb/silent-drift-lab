@@ -66,6 +66,9 @@ jobs:
           uv pip install -r requirements.txt
           cp -n .env.example .env
 
+      - name: Lint
+        run: make lint
+
       - name: Unit tests
         run: make test
 

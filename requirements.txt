@@ -53,3 +53,6 @@ requests>=2.32
 # ── Drift lab figures ──
 matplotlib>=3.9
 pandas>=2.2
+
+# ── Lint (make lint) ──
+ruff==0.17.0

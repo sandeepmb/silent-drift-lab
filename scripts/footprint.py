@@ -39,7 +39,7 @@ def main() -> None:
     limit = rows[0][3] if rows else "?"
 
     md = [
-        f"# Opik stack footprint (measured)",
+        "# Opik stack footprint (measured)",
         "",
         f"- Date: {dt.datetime.now().isoformat(timespec='minutes')}",
         f"- Host: {platform.machine()} / {platform.platform()}",

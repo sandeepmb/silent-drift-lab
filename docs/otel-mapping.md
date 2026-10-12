@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Opik backend | **2.2.96** (self-hosted, `ghcr.io/comet-ml/opik/opik-backend:2.2.96`) |
-| Mapping rules | `apps/opik-backend/src/main/java/com/comet/opik/domain/mapping/otel/*MappingRules.java` and `domain/OpenTelemetryMapper.java`, `domain/OpenTelemetryService.java`, `domain/mapping/OpenTelemetryMappingUtils.java` in the Opik repo at tag `2.2.96` (local checkout: `/Users/sandeep.bharadwaj/opik-src`) |
+| Mapping rules | `apps/opik-backend/src/main/java/com/comet/opik/domain/mapping/otel/*MappingRules.java` and `domain/OpenTelemetryMapper.java`, `domain/OpenTelemetryService.java`, `domain/mapping/OpenTelemetryMappingUtils.java` in the Opik repo at tag `2.2.96` |
 | Emitter | `app/observability/otel_setup.py` (`OTelLangChainHandler`), opentelemetry-sdk 1.45.1, opik SDK 2.2.96, langchain-core 1.0.0, langgraph 1.1.0 |
 | Verified with | `GET /api/v1/private/traces?project_name=silent-drift-lab` and `GET /api/v1/private/spans?trace_id=…` after a real `TELEMETRY_MODE=otel` session (thread `6dccf0d5`, traces `01a127e4-023a-…` and `01a127e6-1af2-…`, 24 spans) plus `scripts/otel_probe.py` runs |
 

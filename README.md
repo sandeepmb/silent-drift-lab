@@ -1,6 +1,8 @@
 # silent-drift-lab
 
-An open-source lab that shows how a multi-agent LLM system gets worse while every dashboard stays green, and the observability stack (Opik + OpenTelemetry) plus the drift monitor that catches it.
+An open-source lab that shows how a multi-agent LLM system gets worse while its error rate stays at zero, and the observability stack (Opik + OpenTelemetry) plus the drift monitor that catches it.
+
+Built on the Learning Accelerator from [sandeepmb/freecodecamp-multi-agent-ai-system](https://github.com/sandeepmb/freecodecamp-multi-agent-ai-system), the multi-agent study app from the freeCodeCamp handbook.
 
 [![CI](https://github.com/sandeepmb/silent-drift-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/sandeepmb/silent-drift-lab/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/github/license/sandeepmb/silent-drift-lab)](LICENSE)
@@ -13,19 +15,20 @@ Opik is an open-source LLM observability platform from Comet; this lab runs it s
 
 ```bash
 git clone https://github.com/sandeepmb/silent-drift-lab && cd silent-drift-lab
-make setup                # .venv with pinned deps; needs uv, Python 3.11, Docker Desktop with 8 GB
+make setup                # .venv with pinned deps; needs uv, Python 3.11, Docker Desktop with 12 GB (8 GB works but is tight)
 ollama pull qwen2.5:7b    # the one model: app and judge
 make opik-up              # self-hosted Opik at http://localhost:5173 (first run pulls about 2 GB of images)
 make services             # the quiz service on :9001 (a separate process, so traces cross a boundary)
-make demo                 # healthy session, then drift injected: latency flat, errors zero, quiz score falls
+make demo                 # healthy session, then drift injected: errors stay zero, grounding in the notes drops
 ```
 
 **Works with what you already use.** `TELEMETRY_MODE=otel make run` sends the same spans through an OpenTelemetry Collector (`make otel-up`), so any backend that accepts OTLP (OpenTelemetry's wire protocol) can receive them.
 
-**3.4 GiB idle** is what the full self-hosted Opik stack costs you. MEASURED: 8 containers, Apple Silicon, Docker Desktop at 8 GB, via `make footprint` ([how to reproduce](docs/reproducing.md)). A one-topic traced session takes about 2.7 minutes on `qwen2.5:7b` on the same machine, so `make demo` runs two of them in roughly six.
+**4.6 GiB idle** is what the full self-hosted Opik stack cost on the day of measurement (a fresh stack is smaller: ClickHouse grows with stored traces). MEASURED: 8 containers, about 640 stored traces, Apple Silicon, Docker Desktop at 8 GB, via `make footprint` ([how to reproduce](docs/reproducing.md)). A one-topic traced session took a median of 86 seconds on `qwen2.5:7b` on the same machine (n = 30, range 59 to 302 s), and `make demo`, which runs two of them, took 385 seconds in its last run.
 
-<!-- TODO(drift-headline): after `make drift-demo` lands, replace this line with the measured result, e.g. "The monitor flagged N of 6 injections at a false-positive rate of X over 30 baseline sessions." -->
-**Drift result:** pending the first full `make drift-demo` run.
+**Drift result:** the monitor flagged all 6 injected drifts (2 page, 3 ticket, 1 annotate) over a 30-session healthy baseline and 3 sessions per scenario; a static `quiz_score < 0.6` rule flagged 0 of 6. The monitor is not free of false alarms: on sliding windows over the healthy baseline it paged 2 times in 28, against 1 page in 30 sessions for the static rule. Latency rose with host load before any injection, so it could not be used. MEASURED, n = 3 per scenario, a synthetic student: the shape of the evidence, not a benchmark ([docs/drift-lab.md](docs/drift-lab.md)).
+
+![Drift figure: system signals on top, quality signals below, injection points marked](docs/img/drift-figure-light.png)
 
 Read [LIMITATIONS.md](LIMITATIONS.md) before you decide this applies to your system. The student is synthetic, the sample is small, and the local model is noisy. The limits are the point of the lab, not a footnote.
 
@@ -33,7 +36,6 @@ Read [LIMITATIONS.md](LIMITATIONS.md) before you decide this applies to your sys
 
 ## Architecture
 
-<!-- TODO(architecture-svg): draw docs/img/architecture.svg (light theme): App → (native) Opik; App → (otel) Collector → Opik, with a dotted second exporter. -->
 ![architecture](docs/img/architecture.svg)
 
 One study session, end to end:
@@ -99,19 +101,19 @@ Every number here names its standing. MEASURED means `make <target>` produced it
 
 | Figure | Value | Standing | Produced by |
 |---|---|---|---|
-| Opik stack, idle memory | 3.4 GiB across 8 containers | MEASURED (Apple Silicon, Docker Desktop 8 GB) | `make footprint` → `reports/footprint.md` |
-| One-topic traced session | about 2.7 min | MEASURED (`qwen2.5:7b`, n = 1, same machine) | `make run` with `--max-topics 1 --student simulated` |
-| Seed dataset | 30 sessions: 10 goals × 3 personas, one segment | CALIBRATED SYNTHETIC (simulated student, personas in `app/student.py`) | `make seed` |
-| Drift detection | <!-- TODO(drift-table): detections / 6, false positives over the baseline --> pending | MEASURED once run | `make drift-demo` → `reports/drift-figure.png` |
-| Judge agreement with hand labels | <!-- TODO(judge-agreement): N items, agreement figure --> pending | MEASURED once run | `make experiment` |
+| Opik stack, idle memory | 4.60 GiB across 8 containers (ClickHouse 2,477 MiB, backend 910 MiB) | MEASURED (Apple Silicon, Docker Desktop 8 GB, about 640 stored traces) | `make footprint` → `reports/footprint.md` |
+| One-topic traced session | median 86 s, mean 111 s, range 59 s to 302 s | MEASURED (`qwen2.5:7b`, the 30 drift-lab baseline sessions; the slowest ran after a host slowdown) | `data/baseline-runs.jsonl` (`elapsed_s`), from `make drift-demo` |
+| Seed dataset | 30 sessions: 10 goals × 3 personas, 84 graded items (dataset v5) | CALIBRATED SYNTHETIC (simulated student, personas in `app/student.py`) | `make seed` |
+| Drift detection | 6 of 6 flagged (2 page, 3 ticket, 1 annotate); static quiz-score rule 0 of 6; false alarms on the healthy baseline: monitor 2 pages in 28 windows, static rule 1 in 30 sessions | MEASURED, n = 3 per scenario, 30-session baseline | `make drift-demo` → `reports/drift-report.md` |
+| Judge agreement with hand labels | 10 labelled items (the pre-filled examples; 30 more rows of the 40-row template are unlabelled): exact-bucket 0.70, binary 0.80, mean abs. error 0.12, Spearman 0.71 | MEASURED, n = 10, obvious cases only: a smoke test of the procedure, not an accuracy claim | `.venv/bin/python evals/validate_judge.py` → `data/labels/judge_agreement.json` |
 | `make demo` verdict | one healthy run against one drifted run | ILLUSTRATIVE (n = 1 each; an anecdote by design) | `make demo` |
 
-<!-- TODO(drift-figure): once reports/drift-figure.png is generated, copy it to docs/img/drift-figure.png and embed it here with its caption from docs/reproducing.md. -->
+The figure at the top of this README is `reports/drift-figure-light.png` (dark variant: `reports/drift-figure.png`); `make drift-demo` regenerates both. Top panel: what a dashboard sees. Bottom panel: what the monitor sees. The quiz score staying mostly flat while grounding moves is the honest result on this system, because the student is synthetic.
 
 ## Limitations and non-goals
 
 - The student is a second model call with a persona, not a person. "User" signals are simulated.
-- n is small everywhere: 30 baseline sessions, one segment, a 7B model with run-to-run variance that is larger than some of the effects you are looking for.
+- n is small everywhere: 30 baseline sessions in two topic families, 3 sessions per injection, a 7B model with run-to-run variance that is larger than some of the effects you are looking for.
 - The Compose install of Opik is for a laptop. Comet documents it as not for production.
 - Opik's OpenTelemetry endpoint accepts traces over OTLP/HTTP only; the `otel` track has no metrics or logs.
 - Ollama reports no cost, so cost is a shadow price table, not a bill.

@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 670" width="1000" height="670" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title id="t">silent-drift-lab architecture</title>
+  <desc id="d">A four-agent LangGraph app with a human-approval interrupt, MCP tools and a separate A2A quiz service. Telemetry leaves by two paths into Opik: the native SDK, and OpenTelemetry through a Collector with an optional second backend. A drift monitor reads from Opik and emits verdicts.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="670" fill="#ffffff"/>
+
+  <!-- ============ left: the application ============ -->
+  <rect x="20" y="20" width="380" height="450" rx="12" fill="#eef4ff" stroke="#5b8def" stroke-width="1.5"/>
+  <text x="36" y="46" font-size="15" font-weight="700" fill="#1f2933">Learning Accelerator (LangGraph)</text>
+
+  <g font-size="14" fill="#1f2933" text-anchor="middle">
+    <rect x="70" y="68" width="170" height="44" rx="8" fill="#ffffff" stroke="#5b8def" stroke-width="1.5"/>
+    <text x="155" y="95">Curriculum Planner</text>
+
+    <rect x="70" y="140" width="170" height="44" rx="8" fill="#fff4e0" stroke="#e0a030" stroke-width="1.5"/>
+    <text x="155" y="160">Human approval</text>
+    <text x="155" y="177" font-size="12" fill="#52606d">interrupt, then resume</text>
+
+    <rect x="70" y="212" width="170" height="44" rx="8" fill="#ffffff" stroke="#5b8def" stroke-width="1.5"/>
+    <text x="155" y="239">Explainer</text>
+
+    <rect x="70" y="290" width="170" height="52" rx="8" fill="#ffffff" stroke="#5b8def" stroke-width="1.5"/>
+    <text x="155" y="313">Quiz Generator</text>
+    <text x="155" y="332" font-size="12" fill="#52606d">student: person or simulated</text>
+
+    <rect x="70" y="380" width="170" height="44" rx="8" fill="#ffffff" stroke="#5b8def" stroke-width="1.5"/>
+    <text x="155" y="407">Progress Coach</text>
+  </g>
+  <text x="155" y="448" font-size="12" fill="#52606d" text-anchor="middle">all topics done: END</text>
+
+  <!-- flow arrows -->
+  <g stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arr)">
+    <path d="M155,112 V140"/>
+    <path d="M155,184 V212"/>
+    <path d="M155,256 V290"/>
+    <path d="M155,342 V380"/>
+    <!-- rejected: approval back to planner -->
+    <path d="M70,162 H52 V90 H70"/>
+    <!-- next topic: coach back to explainer -->
+    <path d="M70,402 H52 V234 H70"/>
+  </g>
+  <text x="165" y="203" font-size="12" fill="#52606d">approved</text>
+  <text transform="translate(40,126) rotate(-90)" font-size="12" fill="#52606d" text-anchor="middle">rejected</text>
+  <text transform="translate(40,320) rotate(-90)" font-size="12" fill="#52606d" text-anchor="middle">next topic</text>
+
+  <!-- MCP tools -->
+  <rect x="272" y="196" width="112" height="76" rx="8" fill="#eefaf3" stroke="#3aa76d" stroke-width="1.5"/>
+  <g font-size="13" fill="#1f2933" text-anchor="middle">
+    <text x="328" y="220" font-weight="700" font-size="14">MCP tools</text>
+    <text x="328" y="240">list, search, read</text>
+    <text x="328" y="258">files, memory</text>
+  </g>
+  <path d="M240,234 H272" stroke="#475569" stroke-width="1.8" fill="none" marker-start="url(#arr)" marker-end="url(#arr)"/>
+
+  <!-- A2A call from coach to the separate service -->
+  <path d="M240,402 H340 V510" stroke="#8a5cd0" stroke-width="1.8" stroke-dasharray="7 4" fill="none" marker-end="url(#arr)"/>
+  <text x="330" y="494" font-size="12" fill="#52606d" text-anchor="end">A2A call + trace headers</text>
+
+  <!-- A2A quiz service: separate process -->
+  <rect x="20" y="510" width="380" height="100" rx="12" fill="#f3eefc" stroke="#8a5cd0" stroke-width="1.5"/>
+  <g fill="#1f2933" font-size="13">
+    <text x="36" y="536" font-size="15" font-weight="700">A2A quiz service :9001</text>
+    <text x="36" y="558" fill="#52606d">a separate process</text>
+    <text x="36" y="580">re-grades the answers (grader_agreement)</text>
+    <text x="36" y="598">continues the caller's trace</text>
+  </g>
+
+  <!-- ============ middle: two telemetry paths ============ -->
+  <text x="565" y="42" font-size="15" font-weight="700" fill="#1f2933" text-anchor="middle">Two telemetry paths</text>
+
+  <text x="450" y="64" font-size="12" fill="#52606d">NATIVE TRACK</text>
+  <rect x="450" y="70" width="230" height="70" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.5"/>
+  <g font-size="13" fill="#1f2933" text-anchor="middle">
+    <text x="565" y="92" font-weight="700" font-size="14">Opik SDK</text>
+    <text x="565" y="112">OpikTracer and @track</text>
+    <text x="565" y="129">feedback scores from code</text>
+  </g>
+
+  <text x="450" y="214" font-size="12" fill="#52606d">OPENTELEMETRY TRACK</text>
+  <rect x="450" y="222" width="230" height="70" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.5"/>
+  <g font-size="13" fill="#1f2933" text-anchor="middle">
+    <text x="565" y="244" font-weight="700" font-size="14">OTel callback handler</text>
+    <text x="565" y="264">gen_ai.* span attributes</text>
+    <text x="565" y="281">OTLP/HTTP to :4318</text>
+  </g>
+  <rect x="450" y="322" width="230" height="70" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.5"/>
+  <g font-size="13" fill="#1f2933" text-anchor="middle">
+    <text x="565" y="344" font-weight="700" font-size="14">OpenTelemetry Collector</text>
+    <text x="565" y="364">contrib 0.162.0</text>
+    <text x="565" y="381">batch, retry, filter, fan-out</text>
+  </g>
+  <rect x="450" y="440" width="230" height="50" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <g font-size="13" fill="#1f2933" text-anchor="middle">
+    <text x="565" y="462" font-weight="700" font-size="14">Second backend</text>
+    <text x="565" y="480" fill="#52606d">optional exporter</text>
+  </g>
+
+  <g stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arr)">
+    <path d="M400,105 H450"/>
+    <path d="M400,257 H450"/>
+    <path d="M565,292 V322"/>
+    <path d="M680,105 H720"/>
+    <path d="M680,357 H720"/>
+  </g>
+  <path d="M565,392 V440" stroke="#475569" stroke-width="1.8" stroke-dasharray="2 5" stroke-linecap="round" fill="none" marker-end="url(#arr)"/>
+
+  <!-- ============ right: Opik ============ -->
+  <rect x="720" y="20" width="260" height="370" rx="12" fill="#e8f6f6" stroke="#1b9aaa" stroke-width="1.5"/>
+  <text x="736" y="46" font-size="15" font-weight="700" fill="#1f2933">Opik 2.2.96, self-hosted</text>
+  <g fill="#1f2933">
+    <rect x="736" y="62" width="228" height="64" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.2"/>
+    <text x="750" y="88" font-size="14" font-weight="700">Traces and threads</text>
+    <text x="750" y="108" font-size="13" fill="#52606d">one thread per study session</text>
+
+    <rect x="736" y="138" width="228" height="64" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.2"/>
+    <text x="750" y="164" font-size="14" font-weight="700">Datasets and experiments</text>
+    <text x="750" y="184" font-size="13" fill="#52606d">built from traces, scored offline</text>
+
+    <rect x="736" y="214" width="228" height="64" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.2"/>
+    <text x="750" y="240" font-size="14" font-weight="700">Online rules</text>
+    <text x="750" y="260" font-size="13" fill="#52606d">sampled judge, Python metric</text>
+
+    <rect x="736" y="290" width="228" height="64" rx="8" fill="#ffffff" stroke="#1b9aaa" stroke-width="1.2"/>
+    <text x="750" y="316" font-size="14" font-weight="700">Alerts</text>
+    <text x="750" y="336" font-size="13" fill="#52606d">score threshold to a webhook</text>
+  </g>
+
+  <!-- monitor reads from Opik -->
+  <path d="M850,390 V440" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="862" y="420" font-size="12" fill="#52606d">REST reads</text>
+  <rect x="720" y="440" width="260" height="100" rx="12" fill="#fff4e0" stroke="#e0a030" stroke-width="1.5"/>
+  <g fill="#1f2933">
+    <text x="736" y="466" font-size="15" font-weight="700">Drift monitor</text>
+    <text x="736" y="488" font-size="13">per-segment baselines, CUSUM,</text>
+    <text x="736" y="506" font-size="13">two-family corroboration,</text>
+    <text x="736" y="524" font-size="13">tiered verdict</text>
+  </g>
+  <path d="M850,540 V590" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <rect x="720" y="590" width="260" height="56" rx="12" fill="#ffffff" stroke="#e0a030" stroke-width="1.5"/>
+  <g fill="#1f2933" text-anchor="middle">
+    <text x="850" y="613" font-size="14" font-weight="700">Verdict per window</text>
+    <text x="850" y="633" font-size="13">ok, annotate, ticket, page</text>
+  </g>
+
+  <!-- legend -->
+  <g font-size="12" fill="#52606d">
+    <path d="M450,560 H490" stroke="#475569" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+    <text x="500" y="564">telemetry and data</text>
+    <path d="M450,586 H490" stroke="#8a5cd0" stroke-width="1.8" stroke-dasharray="7 4" fill="none" marker-end="url(#arr)"/>
+    <text x="500" y="590">A2A call between processes</text>
+    <path d="M450,612 H490" stroke="#475569" stroke-width="1.8" stroke-dasharray="2 5" stroke-linecap="round" fill="none" marker-end="url(#arr)"/>
+    <text x="500" y="616">optional second backend</text>
+  </g>
+</svg>

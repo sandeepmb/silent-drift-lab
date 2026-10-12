@@ -24,7 +24,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Optional, Union
 
 from opik.evaluation.metrics import (
     AnswerRelevance,

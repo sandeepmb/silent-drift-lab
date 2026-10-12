@@ -1,0 +1,33 @@
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+# Lint the lab's own code. The vendored Learning Accelerator under app/ is left as it came,
+# except the two places this project wrote or changed substantially.
+include = [
+    "drift/**/*.py",
+    "evals/**/*.py",
+    "scripts/**/*.py",
+    "tests/**/*.py",
+    "main.py",
+    "app/observability/**/*.py",
+    "app/student.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = [
+    "E501",   # long lines: the drift report and figure code build wide f-strings on purpose
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Entry points put the repo root on sys.path before importing project modules.
+"drift/*" = ["E402"]
+"scripts/*" = ["E402"]
+"evals/*" = ["E402"]
+"tests/*" = ["E402"]
+"main.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"

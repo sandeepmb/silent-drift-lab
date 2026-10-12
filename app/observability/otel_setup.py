@@ -53,7 +53,7 @@ import json
 import os
 import threading
 from contextvars import ContextVar
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Iterator, Optional
 from urllib.parse import urlparse
 from uuid import UUID
 

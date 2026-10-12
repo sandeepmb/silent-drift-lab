@@ -8,3 +8,19 @@ __pycache__/
 reports/*.png
 .opik/
 .venv-crewai/
+
+# editors and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.iml
+.ipynb_checkpoints/
+Thumbs.db
+desktop.ini
+.ruff_cache/
+.mypy_cache/

@@ -18,9 +18,17 @@ First public version. Companion to the freeCodeCamp handbook and the MLOps World
 - Offline experiments with heuristic and judge-based metrics on a local Ollama judge (`make experiment`).
 - Online evaluation rules on sampled traffic and an alert to a local webhook (`make rules`, `scripts/alert_webhook.py`).
 - The drift lab: six injectable degradations, a monitor with per-segment rolling baselines and two-signal corroboration, and the figure it produces (`make drift-demo`, `reports/drift-figure.png`).
-- A two-minute scripted demo (`make demo`) and a footprint recorder (`make footprint`).
+- A scripted demo (`make demo`: a healthy session, then the same session with `stale_notes` injected, compared on latency, errors, tokens, quiz score and grounding) and a footprint recorder (`make footprint`).
+- A drift-lab baseline of 30 healthy sessions run alone on the GPU (`data/baseline-runs.jsonl`), 3 runs per scenario, a two-panel figure in dark and light variants (`reports/drift-figure*.png`) and a final-numbers report (`reports/final-numbers.md`).
+- Lint configuration (`pyproject.toml`, `make lint`, a CI step) for the lab's own code; the vendored `app/` is not linted except `app/observability/` and `app/student.py`.
 - Evaluations as tests: a fast offline suite for CI and an `eval`-marked gate for a machine with Ollama.
 - Launch documentation: README, LIMITATIONS, reproducing guide, security policy, contributing guide with DCO, issue and PR templates, CI with pinned actions, Dependabot, roadmap.
+
+### Fixed
+
+- The offline experiment's model-swap variant graded with the 7B model because the grader reads its model at call time; `evals/run_experiment.py` now sets `DRIFT_GRADER_MODEL`. The invalid experiment was deleted and is marked in `data/experiments.jsonl`.
+- The judge-label template no longer drops pre-filled example labels when the dataset grows.
+- The A2A second-opinion hop is verified in real sessions (`a2a_reachable`, `grader_agreement` feedback scores).
 
 ### Removed
 

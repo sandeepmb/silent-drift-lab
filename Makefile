@@ -11,9 +11,10 @@
 #   make rules        create online evaluation rules + the alert webhook
 #   make drift-demo   inject drift, run the monitor, produce reports/drift-figure.png
 #   make test         unit tests (fast) ; make evals-test runs the eval gate
+#   make lint         ruff over the lab's own code (config in pyproject.toml)
 #   make otel-up      start the OpenTelemetry Collector (TELEMETRY_MODE=otel)
 
-.PHONY: footprint setup opik-up opik-down opik-logs services stop run demo seed experiment rules drift-demo test evals-test otel-up otel-down lock clean
+.PHONY: footprint setup opik-up opik-down opik-logs services stop run demo seed experiment rules drift-demo test evals-test lint otel-up otel-down lock clean
 
 VENV   = .venv
 PY     = $(VENV)/bin/python
@@ -50,8 +51,8 @@ opik-logs:
 # ── App ─────────────────────────────────────────────────────────────────────
 services: stop
 	@mkdir -p data
-	$(PY) app/a2a_services/quiz_service.py > data/quiz_service.log 2>&1 &
-	@sleep 2
+	@PYTHONUNBUFFERED=1 nohup $(PY) app/a2a_services/quiz_service.py > data/quiz_service.log 2>&1 &
+	@sleep 4
 	@echo "Quiz Generator A2A: http://localhost:9001/.well-known/agent-card.json"
 
 stop:
@@ -61,7 +62,7 @@ run:
 	$(PY) main.py
 
 demo:
-	$(PY) scripts/demo.py
+	@$(PY) scripts/demo.py
 
 seed:
 	$(PY) scripts/seed_dataset.py
@@ -80,6 +81,9 @@ test:
 
 evals-test:
 	$(PY) -m pytest tests/ -m eval -q
+
+lint:
+	$(VENV)/bin/ruff check .
 
 # ── OpenTelemetry track ─────────────────────────────────────────────────────
 otel-up:

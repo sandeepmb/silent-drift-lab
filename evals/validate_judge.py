@@ -60,7 +60,7 @@ def load_items(from_opik: bool) -> list[dict]:
         except Exception as e:  # offline: fall back to the mirror
             print(f"[labels] Opik dataset unavailable ({type(e).__name__}); using local mirror")
     if not items and MIRROR.exists():
-        items = [json.loads(l) for l in MIRROR.read_text().splitlines() if l.strip()]
+        items = [json.loads(ln) for ln in MIRROR.read_text().splitlines() if ln.strip()]
     return items
 
 
@@ -74,10 +74,15 @@ def build_csv(items: list[dict]) -> list[dict]:
     examples = json.loads(EXAMPLES_PATH.read_text()) if EXAMPLES_PATH.exists() else {}
 
     # Spread the 40 items over personas so the template has obvious highs and lows.
+    # Items that carry a pre-filled example label are always kept, so growing the
+    # dataset never drops them from the template.
+    pinned = [it for it in items if item_key(it["input"]["question"], it["input"]["student_answer"]) in examples]
+    pinned_ids = {id(it) for it in pinned}
     by_persona: dict[str, list[dict]] = {}
     for it in items:
-        by_persona.setdefault(it["input"].get("persona", "?"), []).append(it)
-    picked: list[dict] = []
+        if id(it) not in pinned_ids:
+            by_persona.setdefault(it["input"].get("persona", "?"), []).append(it)
+    picked: list[dict] = list(pinned)
     while len(picked) < N_ITEMS and any(by_persona.values()):
         for p in sorted(by_persona):
             if by_persona[p] and len(picked) < N_ITEMS:
@@ -138,7 +143,7 @@ def spearman(a: list[float], b: list[float]) -> float | None:
         return None
     ra, rb = _ranks(a), _ranks(b)
     ma, mb = sum(ra) / len(ra), sum(rb) / len(rb)
-    num = sum((x - ma) * (y - mb) for x, y in zip(ra, rb))
+    num = sum((x - ma) * (y - mb) for x, y in zip(ra, rb, strict=True))
     den = math.sqrt(sum((x - ma) ** 2 for x in ra) * sum((y - mb) ** 2 for y in rb))
     return num / den if den else None
 
@@ -150,9 +155,9 @@ def report(rows: list[dict]) -> dict:
         return {"labelled": 0}
     j = [float(r["judge_score"]) for r in labelled]
     h = [float(r["human_score"]) for r in labelled]
-    exact = sum(bucket3(x) == bucket3(y) for x, y in zip(j, h)) / len(labelled)
-    binary = sum((x >= 0.5) == (y >= 0.5) for x, y in zip(j, h)) / len(labelled)
-    mae = sum(abs(x - y) for x, y in zip(j, h)) / len(labelled)
+    exact = sum(bucket3(x) == bucket3(y) for x, y in zip(j, h, strict=True)) / len(labelled)
+    binary = sum((x >= 0.5) == (y >= 0.5) for x, y in zip(j, h, strict=True)) / len(labelled)
+    mae = sum(abs(x - y) for x, y in zip(j, h, strict=True)) / len(labelled)
     rho = spearman(j, h)
     examples = sum(1 for r in labelled if str(r.get("note", "")).startswith("example"))
     out = {

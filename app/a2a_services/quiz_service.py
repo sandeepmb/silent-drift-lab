@@ -36,6 +36,12 @@ from dotenv import load_dotenv
 
 load_dotenv()  # same .env as main.py: OPIK_PROJECT_NAME, TELEMETRY_MODE, OTEL_* (cwd-independent)
 
+import logging
+
+# Keep the service log readable: HTTP client chatter goes to WARNING (as in main.py).
+for _name in ("httpx", "httpcore", "opik", "urllib3"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
+
 import uvicorn
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.apps import A2AStarletteApplication

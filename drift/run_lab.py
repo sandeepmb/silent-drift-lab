@@ -7,14 +7,16 @@ drift/run_lab.py — the whole drift lab in one command.
     python drift/run_lab.py --analyse-only   # skip the runs, rebuild the reports
 
 Steps
-  1. Wait for the baseline population: ≥ MIN_BASELINE sessions in
-     data/seed-runs.jsonl (written by scripts/seed_dataset.py). If the file is
-     still absent after --wait-min minutes, run 10 baseline sessions here,
-     tagged `baseline`.
+  1. Baseline (default `--baseline own`): run 30 healthy sessions alone on the GPU,
+     tagged `baseline`, recorded in data/baseline-runs.jsonl. They are separate from
+     the seed sessions on purpose: the seed may have been produced while other jobs
+     shared Ollama, which makes its latency incomparable with drift sessions run
+     alone. `--baseline seed` instead waits for >= MIN_BASELINE sessions in
+     data/seed-runs.jsonl (written by scripts/seed_dataset.py).
   2. For each scenario: inject.apply(), run N sessions (personas cycle
      good/average/weak so the window matches the baseline mix), inject.clear().
      Sessions are tagged drift:<scenario>, segment:<s>, persona:<p>, lab.
-  3. Pull every seed/baseline/drift session from Opik → reports/drift-signals.csv
+  3. Pull every baseline/drift session from Opik → reports/drift-signals.csv
   4. Run the monitor → reports/drift-report.md (+ drift-report.json)
   5. Draw reports/drift-figure.png (dark) and reports/drift-figure-light.png
 """
@@ -105,6 +107,35 @@ def wait_for_baseline(min_sessions: int, wait_min: float, quiet: bool) -> str:
             _append(BASELINE_RUNS, {**r.summary(), "segment": sc.get("segment"), "persona": sc["persona"], "scenario": "none",
                                     "ts": datetime.now(timezone.utc).isoformat()})
     return "baseline"
+
+
+def run_own_baseline(n: int, quiet: bool) -> None:
+    """
+    Run n healthy sessions alone on the GPU (tag `baseline`) and record them in
+    data/baseline-runs.jsonl. Resumable: sessions already recorded are skipped.
+
+    Why the lab runs its own baseline instead of reusing the seed sessions: the seed
+    can be produced while other jobs share Ollama, which inflates and scatters latency
+    for the baseline but not for a drift session run later, alone. Latency is a
+    "system signal" the lab claims stays flat, so the two populations must be measured
+    under the same conditions.
+    """
+    from main import run_session  # noqa: WPS433
+
+    plan = [json.loads(ln) for ln in (ROOT / "scenarios" / "sessions.jsonl").read_text().splitlines() if ln.strip()][:n]
+    done = _count_jsonl(BASELINE_RUNS)
+    print(f"[lab] own baseline: {done} of {len(plan)} sessions already recorded")
+    inject.clear()
+    for k, sc in enumerate(plan[done:], done + 1):
+        segment = sc.get("segment", "python-fundamentals")
+        started = time.time()
+        print(f"\n[lab] baseline ({k}/{len(plan)}) persona={sc['persona']} goal={sc['goal']!r}", flush=True)
+        r = run_session(sc["goal"], auto_approve=True, student_mode="simulated", persona=sc["persona"], max_topics=1,
+                        tags=["baseline", f"persona:{sc['persona']}", f"segment:{segment}"],
+                        metadata={"segment": segment, "persona": sc["persona"]}, quiet=quiet)
+        _append(BASELINE_RUNS, {**r.summary(), "scenario_id": sc.get("id"), "segment": segment, "persona": sc["persona"],
+                                "scenario": "none", "trace_ids": r.trace_ids, "ts": datetime.now(timezone.utc).isoformat()})
+        print(f"[lab]   → quiz={r.avg_score:.2f} elapsed={time.time() - started:.0f}s error={r.error}", flush=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -217,7 +248,7 @@ def write_report(df: pd.DataFrame, rep: dict, path: Path, args: argparse.Namespa
     L.append("## The naive rule, for comparison\n")
     L.append(f"- Static threshold `quiz_score < {st['threshold']}` on the **healthy** baseline: "
              f"**{st['false_positives']} / {st['baseline_n']} sessions would have paged** "
-             f"({st['false_positive_rate']:.0%} false-positive rate; they are the weak-persona students).")
+             f"({st['false_positive_rate']:.0%} false-positive rate; lowest baseline quiz_score {base['quiz_score'].min():.2f}).")
     if chk:
         L.append(f"- The corroborating monitor on the same baseline, sliding 3-session windows: "
                  f"{chk['windows']} windows → ok {chk['ok']}, annotate {chk['annotate']}, ticket {chk['ticket']}, **page {chk['page']}**.")
@@ -268,12 +299,26 @@ def write_report(df: pd.DataFrame, rep: dict, path: Path, args: argparse.Namespa
 # 5. figure
 # ─────────────────────────────────────────────────────────────────────────────
 
-def draw_figure(df: pd.DataFrame, path: Path, dark: bool = True, scenario_order: list[str] | None = None) -> None:
+def draw_figure(df: pd.DataFrame, path: Path, dark: bool = True, scenario_order: list[str] | None = None,
+                verdicts: dict[str, str] | None = None, static_threshold: float | None = None) -> None:
+    """
+    Two panels over the same x axis (sessions in time order: baseline, then each injection):
+      top    system health (latency, shadow cost, errors), each indexed to the baseline median, with
+             the baseline's own spread shaded: what a dashboard sees
+      bottom quality (quiz score, grounding): what the monitor sees; the static alert threshold
+             is drawn so you can see whether it trips. Quiz score staying mostly flat while grounding
+             moves is the honest result on this system (the student is synthetic) and is labelled so.
+    Lines are drawn per group (baseline, then one segment per scenario): nothing is smoothed
+    across an injection boundary.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
 
+    verdicts = verdicts or {}
     drift = df[df["scenario"] != "none"]
     # Baseline sessions of the segment(s) the drift sessions belong to, in time order
     # (a different topic family has its own baseline and would only add noise here).
@@ -283,81 +328,138 @@ def draw_figure(df: pd.DataFrame, path: Path, dark: bool = True, scenario_order:
         base = df[df["scenario"] == "none"].sort_values("timestamp")
     order = [s for s in (scenario_order or list(inject.SCENARIOS)) if s in set(drift["scenario"])]
     order += [s for s in drift["scenario"].unique() if s not in order]
-    parts = [base] + [drift[drift["scenario"] == s].sort_values("timestamp") for s in order]
-    seq = pd.concat(parts, ignore_index=True)
+    groups = [("baseline", base.reset_index(drop=True))] + [(s, drift[drift["scenario"] == s].sort_values("timestamp").reset_index(drop=True)) for s in order]
+    seq = pd.concat([g for _, g in groups], ignore_index=True)
     x = np.arange(len(seq))
     inj = len(base)
 
     bg, fg, grid = ("#0f1115", "#e6e6e6", "#2a2d34") if dark else ("#ffffff", "#1f1f1f", "#e3e3e3")
-    muted = "#9aa0a6" if dark else "#6b7075"
-    amber, amber2 = "#f2a900", "#ffd166"
-    grey, green, red = ("#8f969e", "#3ddc97", "#ff6b6b") if dark else ("#6b7075", "#1b9e77", "#d62828")
-
-    def roll(s: pd.Series, w: int = 3) -> pd.Series:
-        return s.rolling(w, min_periods=1, center=True).median()
+    muted = "#9aa0a6" if dark else "#5b6066"
+    amber, amber2 = ("#f2a900", "#ffd166") if dark else ("#c77d00", "#e0a526")
+    grey, green, red = ("#9aa3ad", "#3ddc97", "#ff6b6b") if dark else ("#5b6670", "#1b9e77", "#d62828")
+    vcol = {"page": red, "ticket": amber, "annotate": muted, "ok": green}
 
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10})
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 8), sharex=True, facecolor=bg, gridspec_kw={"hspace": 0.22})
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 8.6), sharex=True, facecolor=bg, gridspec_kw={"hspace": 0.42})
     for ax in (ax1, ax2):
         ax.set_facecolor(bg)
         for sp in ax.spines.values():
             sp.set_color(grid)
         ax.tick_params(colors=muted, labelsize=9)
         ax.yaxis.label.set_color(fg)
-        ax.xaxis.label.set_color(fg)
-        ax.grid(True, color=grid, linewidth=0.6, alpha=0.8)
+        ax.grid(True, axis="y", color=grid, linewidth=0.6, alpha=0.8)
         ax.set_axisbelow(True)
+    ax1.set_xticks([])
+    ax2.set_xticks([])
 
-    # ── top: system health, indexed to the baseline median (1.0 = baseline) ──
+    def num(col: str) -> pd.Series:
+        return pd.to_numeric(seq[col], errors="coerce")
+
     def idx(col: str) -> pd.Series:
         med = pd.to_numeric(base[col], errors="coerce").median()
-        return pd.to_numeric(seq[col], errors="coerce") / (med if med else 1.0)
+        return num(col) / (med if med else 1.0)
 
+    def line_by_group(ax, series: pd.Series, color: str, ls: str = "-", marker: str = "o", lw: float = 2.0,
+                      rolling: bool = True) -> None:
+        """Baseline: rolling median over 5 sessions (or its flat median); each scenario: its median as a flat bar."""
+        pos = 0
+        for name, g in groups:
+            n = len(g)
+            ys = series.iloc[pos:pos + n]
+            xs = x[pos:pos + n]
+            ax.scatter(xs, ys, color=color, s=18, alpha=0.65, marker=marker, zorder=3)
+            if name == "baseline" and rolling:
+                ax.plot(xs, ys.rolling(5, min_periods=1, center=True).median(), color=color, lw=lw, ls=ls, zorder=2)
+            elif n:  # flat median bar (scenarios, and the baseline when not rolling)
+                ax.hlines(ys.median(), xs.min() - 0.4, xs.max() + 0.4, color=color, lw=lw + 0.8, ls=ls, zorder=2)
+            pos += n
+
+    # ── top: system health, indexed to the baseline median (1.0 = baseline) ──
     lat, cost = idx("duration_ms"), idx("est_cost_usd")
-    ax1.plot(x, roll(lat), color=grey, lw=2, label="latency (÷ baseline median)")
-    ax1.scatter(x, lat, color=grey, s=14, alpha=0.5)
-    ax1.plot(x, roll(cost), color=green, lw=2, label="cost / tokens (÷ baseline median)")
-    ax1.scatter(x, cost, color=green, s=14, alpha=0.5)
-    err = pd.to_numeric(seq["error"], errors="coerce").fillna(0) > 0
-    ax1.scatter(x[err], np.full(err.sum(), 1.0), marker="x", color=red, s=50, label=f"session error ({int(err.sum())})", zorder=5)
+    for col, c in ((lat, grey), (cost, green)):
+        b = col.iloc[:inj].dropna()
+        if len(b):
+            ax1.axhspan(b.quantile(0.1), b.quantile(0.9), xmin=0, xmax=1, color=c, alpha=0.08, lw=0)
+    line_by_group(ax1, lat, grey)
+    line_by_group(ax1, cost, green, marker="s")
+    err = num("error").fillna(0) > 0
+    if err.any():
+        ax1.scatter(x[err.to_numpy()], np.full(int(err.sum()), 1.0), marker="x", color=red, s=60, zorder=5)
     ax1.axhline(1.0, color=muted, lw=0.8, ls=":")
-    ax1.set_ylim(0, max(2.2, float(np.nanmax(np.concatenate([lat.to_numpy(), cost.to_numpy()]))) * 1.1))
-    ax1.set_ylabel("system health (indexed)")
-    ax1.set_title("What the dashboard saw: latency, errors, cost — flat", color=fg, loc="left", fontsize=12, fontweight="bold", pad=8)
+    top = float(np.nanmax(np.concatenate([lat.to_numpy(), cost.to_numpy()])))
+    ax1.set_ylim(0, max(2.0, min(top * 1.15, 4.0)))
+    ax1.set_ylabel("system health\n(1.0 = baseline median)")
+    ax1.set_title("What the dashboard sees: latency, cost, errors", color=fg, loc="left", fontsize=12, fontweight="bold", pad=26)
+    n_drift = len(seq) - inj
+    drift_cost = cost.iloc[inj:]
+    cost_lo, cost_hi = cost.iloc[:inj].quantile(0.1), cost.iloc[:inj].quantile(0.9)
+    cost_in = int(((drift_cost >= cost_lo) & (drift_cost <= cost_hi)).sum())
+    err_drift = int(err.iloc[inj:].sum())
+    ax1.text(0.005, 0.03, f"injected sessions: {err_drift} of {n_drift} errored, {cost_in} of {n_drift} had cost inside the healthy band.\n"
+             "Latency rose before any injection (host slowdown): it cannot tell drift from load.",
+             transform=ax1.transAxes, color=muted, fontsize=8.5, ha="left", va="bottom", linespacing=1.3)
+    ax1.legend(handles=[
+        Line2D([0], [0], color=grey, lw=2, marker="o", ms=4, label="latency"),
+        Line2D([0], [0], color=green, lw=2, marker="s", ms=4, label="cost (shadow price from token counts)"),
+        Line2D([0], [0], color=red, lw=0, marker="x", ms=7, label=f"session errors ({int(err.sum())})"),
+        Patch(facecolor=muted, alpha=0.25, label="baseline 10th-90th percentile"),
+    ], loc="lower right", bbox_to_anchor=(1.0, 1.0), fontsize=8, frameon=False, labelcolor=fg, ncol=4)
+    # Where latency starts to climb inside the healthy baseline, if it does.
+    lat_roll = lat.iloc[:inj].rolling(5, min_periods=3, center=True).median()
+    climb = lat_roll[lat_roll > 1.5]
+    if len(climb):
+        k = int(climb.index[0])
+        ax1.annotate("latency climbs here, before any injection:\nhost slowdown, not drift", xy=(k, float(lat_roll.iloc[k])),
+                     xytext=(k - 9, ax1.get_ylim()[1] * 0.80), color=muted, fontsize=8.5, ha="left", va="center",
+                     arrowprops={"arrowstyle": "->", "color": muted, "lw": 0.9})
 
     # ── bottom: quality ────────────────────────────────────────────────────
-    q = pd.to_numeric(seq["quiz_score"], errors="coerce")
-    g = pd.to_numeric(seq["grounding"], errors="coerce")
-    ax2.plot(x, roll(q), color=amber, lw=2, label="quiz score (rolling median)")
-    ax2.scatter(x, q, color=amber, s=14, alpha=0.55)
-    ax2.plot(x, roll(g), color=amber2, lw=2, ls="--", label="grounding proxy (rolling median)")
-    ax2.scatter(x, g, color=amber2, s=14, alpha=0.55, marker="s")
-    for col, lab in ((q, "quiz"), (g, "grounding")):
-        med = col.iloc[:inj].median()
-        ax2.axhline(med, color=amber if lab == "quiz" else amber2, lw=0.8, ls=":", alpha=0.7)
-    ax2.set_ylim(-0.02, 1.05)
+    q, g = num("quiz_score"), num("grounding")
+    for col, c in ((q, amber), (g, amber2)):
+        b = col.iloc[:inj].dropna()
+        if len(b):
+            ax2.axhspan(b.quantile(0.1), b.quantile(0.9), color=c, alpha=0.10, lw=0)
+    # Flat baseline median, not a rolling one: grounding is 0 whenever retrieval finds nothing, and a
+    # rolling median over a run of such healthy sessions would draw a drop before any injection.
+    line_by_group(ax2, q, amber, rolling=False)
+    line_by_group(ax2, g, amber2, ls="--", marker="s", rolling=False)
+    if static_threshold is not None:
+        ax2.axhline(static_threshold, color=red, lw=1.1, ls=(0, (2, 3)))
+        ax2.text(-0.6, static_threshold + 0.012, f"static alert fires below this line (quiz score < {static_threshold:g})", color=red, fontsize=8, ha="left", va="bottom")
+    ax2.set_ylim(-0.03, 1.32)
+    ax2.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
     ax2.set_ylabel("behavioural quality")
-    ax2.set_xlabel("sessions, in time order")
-    ax2.set_title("What the monitor saw: quiz score and grounding — falling (or changing shape)", color=fg, loc="left", fontsize=12, fontweight="bold", pad=8)
+    ax2.set_title("What the monitor sees: quiz score stays mostly flat, grounding moves (up or down)", color=fg, loc="left", fontsize=12, fontweight="bold", pad=26)
+    ax2.legend(handles=[
+        Line2D([0], [0], color=amber, lw=2, marker="o", ms=4, label="quiz score"),
+        Line2D([0], [0], color=amber2, lw=2, ls="--", marker="s", ms=4, label="grounding (share of explanation backed by retrieved notes)"),
+        Patch(facecolor=amber, alpha=0.2, label="baseline 10th-90th percentile"),
+    ], loc="lower right", bbox_to_anchor=(1.0, 1.0), fontsize=8, frameon=False, labelcolor=fg, ncol=3)
 
-    # ── injection point + scenario bands ───────────────────────────────────
-    pos = inj
+    # ── injection point, group bands and labels ─────────────────────────────
     for ax in (ax1, ax2):
-        ax.axvline(inj - 0.5, color=red, lw=1.4, ls="--")
-    ax1.text(inj - 0.3, ax1.get_ylim()[1] * 0.97, "injection →", color=red, fontsize=9, va="top")
+        ax.axvline(inj - 0.5, color=red, lw=1.6, ls="--")
+    ax1.annotate("drift injected from here \u2192", xy=(inj - 0.5, ax1.get_ylim()[1] * 0.97), xytext=(-6, 0), textcoords="offset points",
+                 color=red, fontsize=9, fontweight="bold", va="top", ha="right")
+    pos = inj
     for i, s in enumerate(order):
         n = int((drift["scenario"] == s).sum())
         for ax in (ax1, ax2):
-            ax.axvspan(pos - 0.5, pos + n - 0.5, color=amber if i % 2 == 0 else grey, alpha=0.07 if dark else 0.08, lw=0)
-        ax2.text(pos + n / 2 - 0.5, 1.03, s.replace("_", "\n"), color=muted, fontsize=8, ha="center", va="top")
+            ax.axvspan(pos - 0.5, pos + n - 0.5, color=amber if i % 2 == 0 else grey, alpha=0.07 if dark else 0.09, lw=0)
+        label = s.replace("_", "\n")
+        v = verdicts.get(s)
+        ax2.text(pos + n / 2 - 0.5, 1.30, label, color=fg, fontsize=8.5, ha="center", va="top", fontweight="bold", linespacing=1.1)
+        if v:
+            ax2.text(pos + n / 2 - 0.5, 1.30 - 0.17, v.upper(), color=vcol.get(v, muted), fontsize=8, ha="center", va="top", fontweight="bold")
         pos += n
-    ax2.text(inj / 2, 1.03, f"baseline · {'/'.join(sorted(base['segment'].unique()))} (n={inj})", color=muted, fontsize=8, ha="center", va="top")
+    segname = "/".join(sorted(base["segment"].unique()))
+    n_all_base = int((df["scenario"] == "none").sum())
+    ax2.text((inj - 1) / 2, 1.30, f"healthy baseline: {segname}\n({inj} of {n_all_base} baseline sessions; the rest are other topics)", color=muted, fontsize=8.5, ha="center", va="top")
+    ax2.set_xlim(-0.8, len(seq) - 0.2)
+    ax2.set_xlabel("sessions in time order: healthy baseline, then each injected scenario (monitor verdict under each name)", color=fg)
 
-    for ax, loc in ((ax1, "upper left"), (ax2, "lower left")):
-        leg = ax.legend(loc=loc, fontsize=8, frameon=True, facecolor=bg, edgecolor=grid, labelcolor=fg, ncol=3)
-        leg.get_frame().set_alpha(0.9)
-    fig.suptitle("Silent drift: system signals flat, quality signals fall", color=fg, x=0.01, ha="left", fontsize=14, fontweight="bold", y=0.985)
-    fig.text(0.99, 0.005, "Learning Accelerator · Opik · local qwen2.5 · drift lab", color=muted, fontsize=8, ha="right")
+    fig.suptitle("Silent drift: no injected session errored and quiz score mostly holds, while grounding and output shape move", color=fg, x=0.01, ha="left", fontsize=14, fontweight="bold", y=0.995)
+    fig.text(0.99, 0.003, "Learning Accelerator · Opik · local qwen2.5 · drift lab", color=muted, fontsize=8, ha="right")
     fig.savefig(path, dpi=150, facecolor=bg, bbox_inches="tight")
     plt.close(fig)
 
@@ -369,7 +471,8 @@ def draw_figure(df: pd.DataFrame, path: Path, dark: bool = True, scenario_order:
 def analyse(args: argparse.Namespace) -> dict:
     REPORTS.mkdir(exist_ok=True)
     print("[lab] pulling sessions from Opik …")
-    df = signals.fetch_sessions(include_tags=["seed", "baseline", "drift:"], exclude_tags=["smoke", "demo", "probe", "otel", "mode:"])
+    base_tags = ["baseline"] if args.baseline == "own" else ["seed", "baseline"]
+    df = signals.fetch_sessions(include_tags=base_tags + ["drift:"], exclude_tags=["smoke", "demo", "probe", "otel", "mode:"])
     if df.empty:
         raise SystemExit("[lab] no sessions found in Opik")
     df.loc[df["scenario"].isna(), "scenario"] = "none"
@@ -378,6 +481,12 @@ def analyse(args: argparse.Namespace) -> dict:
     if unfinished.any():
         print(f"[lab] dropping {int(unfinished.sum())} unfinished session(s): {', '.join(df.loc[unfinished, 'session_id'])}")
         df = df[~unfinished].reset_index(drop=True)
+    if args.baseline == "own" and BASELINE_RUNS.exists():
+        mine_b = {json.loads(ln)["session_id"] for ln in BASELINE_RUNS.read_text(encoding="utf-8").splitlines() if ln.strip()}
+        stray_b = (df["scenario"] == "none") & ~df["session_id"].isin(mine_b)
+        if stray_b.any():
+            print(f"[lab] ignoring {int(stray_b.sum())} baseline session(s) not in data/baseline-runs.jsonl")
+            df = df[~stray_b].reset_index(drop=True)
     # The lab's own run log says which drift sessions belong to this run.
     if not args.all_drift and DRIFT_RUNS.exists():
         mine = {json.loads(ln)["session_id"] for ln in DRIFT_RUNS.read_text(encoding="utf-8").splitlines() if ln.strip()}
@@ -396,8 +505,9 @@ def analyse(args: argparse.Namespace) -> dict:
     text = write_report(df, rep, REPORTS / "drift-report.md", args)
     print(text.split("## The naive rule")[0])
     if not df[df["scenario"] != "none"].empty:
-        draw_figure(df, REPORTS / "drift-figure.png", dark=True)
-        draw_figure(df, REPORTS / "drift-figure-light.png", dark=False)
+        verdicts = {name: r["verdict"] for name, r in rep["scenarios"].items()}
+        draw_figure(df, REPORTS / "drift-figure.png", dark=True, verdicts=verdicts, static_threshold=args.static_threshold)
+        draw_figure(df, REPORTS / "drift-figure-light.png", dark=False, verdicts=verdicts, static_threshold=args.static_threshold)
         print("[lab] figures → reports/drift-figure.png, reports/drift-figure-light.png")
     return rep
 
@@ -411,7 +521,12 @@ def main() -> None:
     ap.add_argument("--runs-only", action="store_true", help="run the injections now, analyse later (do not wait for the baseline)")
     ap.add_argument("--resume", action="store_true", help="skip scenario runs already recorded in data/drift-runs.jsonl")
     ap.add_argument("--all-drift", action="store_true", help="analyse every drift:* session in Opik, not only those in data/drift-runs.jsonl")
-    ap.add_argument("--wait-min", type=float, default=10.0, help="minutes to wait for data/seed-runs.jsonl")
+    ap.add_argument("--baseline", choices=["own", "seed"], default="own",
+                    help="own: run --baseline-n healthy sessions alone on the GPU (default); seed: reuse the seed sessions from scripts/seed_dataset.py")
+    ap.add_argument("--baseline-n", type=int, default=30, help="sessions in the own baseline")
+    ap.add_argument("--baseline-only", action="store_true", help="run only the baseline sessions (then analyse unless --runs-only)")
+    ap.add_argument("--drift-only", action="store_true", help="skip the baseline step, run only the injections")
+    ap.add_argument("--wait-min", type=float, default=10.0, help="minutes to wait for data/seed-runs.jsonl (--baseline seed)")
     ap.add_argument("--min-baseline", type=int, default=MIN_BASELINE)
     ap.add_argument("--z", type=float, default=monitor.Z_THRESH, help="robust-z threshold for a moved signal")
     ap.add_argument("--static-threshold", type=float, default=monitor.STATIC_THRESHOLD)
@@ -421,9 +536,13 @@ def main() -> None:
     n = 1 if args.quick else args.n
 
     if not args.analyse_only:
-        if not args.runs_only:
-            wait_for_baseline(args.min_baseline, args.wait_min, quiet=not args.verbose)
-        run_scenarios(args.scenarios, n, quiet=not args.verbose, extra_tags=args.tag, resume=args.resume)
+        if not args.drift_only:
+            if args.baseline == "own":
+                run_own_baseline(args.baseline_n, quiet=not args.verbose)
+            elif not args.runs_only:
+                wait_for_baseline(args.min_baseline, args.wait_min, quiet=not args.verbose)
+        if not args.baseline_only:
+            run_scenarios(args.scenarios, n, quiet=not args.verbose, extra_tags=args.tag, resume=args.resume)
         print("[lab] letting Opik ingest the last traces …")
         time.sleep(5)
     if not args.runs_only:

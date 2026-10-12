@@ -487,7 +487,7 @@ def fetch_sessions(
 
     lookup = _segment_lookup()
     rows = []
-    for i, (thread_id, trs) in enumerate(by_thread.items(), 1):
+    for thread_id, trs in by_thread.items():
         tags = sorted({t for tr in trs for t in (tr.get("tags") or [])})
         if not keep(tags):
             continue
