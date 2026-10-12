@@ -25,7 +25,7 @@ deepeval==3.9.1
 
 # ── LLM gateway ───────────────────────────────────────────────────────────
 # Required by DeepEval for the Ollama judge, see tests/test_eval.py
-litellm==1.82.4
+litellm==1.104.2
 
 # ── HTTP and API utilities ────────────────────────────────────────────────
 openai==2.8.0
