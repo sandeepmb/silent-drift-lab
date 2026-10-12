@@ -1,0 +1,113 @@
+# CI for silent-drift-lab.
+#
+# The `test` job runs the offline unit tests (`make test`) on a Python matrix.
+# No Ollama, no Opik, no Docker: everything that needs a model is marked `eval`
+# and excluded here.
+#
+# The `evals` job is a manual stub for the evaluation gate (`make evals-test`).
+# It needs a self-hosted runner with Ollama serving qwen2.5:7b and Opik up on
+# localhost. It is wired to workflow_dispatch only and will fail until such a
+# runner is registered with the labels below.
+#
+# Actions are pinned to full commit SHAs; the comment carries the tag. Dependabot
+# keeps them current (see .github/dependabot.yml).
+
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: unit tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    env:
+      TELEMETRY_MODE: "off"
+      OPIK_TRACK_DISABLE: "true"     # @track becomes a no-op; no Opik in CI
+      OPIK_USAGE_REPORT_ENABLED: "false"
+      UV_SYSTEM_PYTHON: "0"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements.txt
+
+      - name: Install pinned dependencies
+        # `make setup` hardcodes Python 3.11; the matrix needs the venv built
+        # with the matrix interpreter, so the two lines are repeated here.
+        run: |
+          uv venv --python ${{ matrix.python }} .venv
+          uv pip install -r requirements.txt
+          cp -n .env.example .env
+
+      - name: Unit tests
+        run: make test
+
+  evals:
+    # Manual stub. Requires a self-hosted runner labelled `self-hosted` and
+    # `ollama`, with qwen2.5:7b pulled and Opik reachable at OPIK_URL_OVERRIDE.
+    # See ROADMAP.md (0.2.0) for when this is expected to run on a schedule.
+    name: evaluation gate (self-hosted, manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, ollama]
+    timeout-minutes: 120
+    env:
+      TELEMETRY_MODE: native
+      OPIK_URL_OVERRIDE: http://localhost:5173/api
+      OPIK_WORKSPACE: default
+      OPIK_PROJECT_NAME: silent-drift-lab-ci
+      OPIK_USAGE_REPORT_ENABLED: "false"
+      OLLAMA_MODEL: qwen2.5:7b
+      JUDGE_MODEL: ollama/qwen2.5:7b
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      - name: Install pinned dependencies
+        run: make setup
+
+      - name: Preflight
+        run: |
+          curl -fsS "${OLLAMA_BASE_URL:-http://localhost:11434}/api/tags" | grep -q "qwen2.5:7b"
+          curl -fsS "${OPIK_URL_OVERRIDE}/is-alive/ping"
+
+      - name: Quiz service
+        run: make services
+
+      - name: Evaluation gate
+        run: make evals-test
+
+      - name: Stop services
+        if: always()
+        run: make stop

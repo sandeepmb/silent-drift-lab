@@ -1,0 +1,30 @@
+{"id": "s001", "goal": "Learn Python closures and decorators from scratch", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s002", "goal": "Learn Python closures and decorators from scratch", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s003", "goal": "Learn Python closures and decorators from scratch", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s004", "goal": "Understand Python generators and the iterator protocol", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s005", "goal": "Understand Python generators and the iterator protocol", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s006", "goal": "Understand Python generators and the iterator protocol", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s007", "goal": "Learn how Python context managers work", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s008", "goal": "Learn how Python context managers work", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s009", "goal": "Learn how Python context managers work", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s010", "goal": "Understand Python's nonlocal and global keywords", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s011", "goal": "Understand Python's nonlocal and global keywords", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s012", "goal": "Understand Python's nonlocal and global keywords", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s013", "goal": "Learn list comprehensions and generator expressions in Python", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s014", "goal": "Learn list comprehensions and generator expressions in Python", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s015", "goal": "Learn list comprehensions and generator expressions in Python", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s016", "goal": "Understand first-class functions and higher-order functions in Python", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s017", "goal": "Understand first-class functions and higher-order functions in Python", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s018", "goal": "Understand first-class functions and higher-order functions in Python", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s019", "goal": "Learn how functools.wraps and partial work", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s020", "goal": "Learn how functools.wraps and partial work", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s021", "goal": "Learn how functools.wraps and partial work", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s022", "goal": "Understand variable scope and the LEGB rule in Python", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s023", "goal": "Understand variable scope and the LEGB rule in Python", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s024", "goal": "Understand variable scope and the LEGB rule in Python", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s025", "goal": "Learn Python lambda functions and when to avoid them", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s026", "goal": "Learn Python lambda functions and when to avoid them", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s027", "goal": "Learn Python lambda functions and when to avoid them", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}
+{"id": "s028", "goal": "Understand how decorators with arguments are built", "persona": "good", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:good"]}
+{"id": "s029", "goal": "Understand how decorators with arguments are built", "persona": "average", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:average"]}
+{"id": "s030", "goal": "Understand how decorators with arguments are built", "persona": "weak", "max_topics": 1, "segment": "python-fundamentals", "tags": ["seed", "persona:weak"]}

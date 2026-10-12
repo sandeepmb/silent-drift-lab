@@ -1,0 +1,91 @@
+# collector/otel-collector.yaml
+#
+# OpenTelemetry Collector for the OTel track of silent-drift-lab.
+#
+#   app (OTLP/HTTP :4318 or OTLP/gRPC :4317)  →  Collector  →  Opik (OTLP/HTTP)
+#                                                          ↘  debug exporter (stdout)
+#                                                          ↘  (optional) second backend
+#
+# Opik's OTLP endpoint is `/api/v1/private/otel/v1/traces`. The otlphttp exporter
+# appends `/v1/traces` to `endpoint` itself, so the endpoint below stops at
+# `.../otel`. Two headers select the workspace and project (self-hosted Opik needs
+# no auth; add `Authorization: <api key>` for Comet cloud). Opik accepts traces
+# only (no metrics/logs pipeline is wired to it).
+#
+# Pinned to the contrib image in docker-compose.collector.yml; the config keys
+# below are stable across 0.1xx releases.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Batch before export: fewer, larger POSTs to Opik. Keep the timeout short so a
+  # trace shows up in the UI a few seconds after the root span ends.
+  batch:
+    timeout: 2s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+  # Guard the collector's own memory on a laptop.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+exporters:
+  # ── Opik (self-hosted) ─────────────────────────────────────────────────────
+  otlphttp/opik:
+    endpoint: http://host.docker.internal:5173/api/v1/private/otel
+    headers:
+      Comet-Workspace: default
+      projectName: silent-drift-lab
+      # Authorization: ${env:OPIK_API_KEY}      # Comet cloud only
+    encoding: proto                              # Opik ingests HTTP/protobuf
+    compression: none
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 2s
+      max_interval: 10s
+      max_elapsed_time: 120s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+
+  # ── Fan-out: a second backend gets the identical spans ─────────────────────
+  # Uncomment, then add `otlphttp/second` to the pipeline's exporters list.
+  # Any OTLP-speaking backend works (Jaeger, Tempo, Langfuse, Phoenix, ...).
+  # otlphttp/second:
+  #   endpoint: http://host.docker.internal:6006        # e.g. Arize Phoenix
+  #   headers:
+  #     Authorization: ${env:SECOND_BACKEND_API_KEY}
+  #   encoding: proto
+  #   compression: gzip
+
+  # ── Debug: prints every span to the collector's stdout ─────────────────────
+  # `docker compose -f collector/docker-compose.collector.yml logs -f` to watch.
+  # Set verbosity to `detailed` to see every attribute (very chatty).
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 50
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/opik, debug]
+      # exporters: [otlphttp/opik, otlphttp/second, debug]   # fan-out variant

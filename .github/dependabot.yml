@@ -1,0 +1,41 @@
+# Dependabot keeps the pinned Python requirements and the SHA-pinned GitHub
+# Actions current. Every dependency in requirements.txt is pinned on purpose
+# (the handbook was written against those versions), so updates arrive as PRs
+# to be reviewed against `make test`, never applied automatically.
+
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      opentelemetry:
+        patterns:
+          - "opentelemetry-*"
+      langchain:
+        patterns:
+          - "langgraph*"
+          - "langchain*"
+    ignore:
+      # Opik is bumped by hand, together with OPIK_VERSION in the Makefile and
+      # the mapping notes in LIMITATIONS.md, so the server and SDK stay in step.
+      - dependency-name: opik
+    labels:
+      - dependencies
+      - python
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: ci

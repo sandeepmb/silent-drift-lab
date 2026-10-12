@@ -1,0 +1,23 @@
+silent-drift-lab
+Copyright 2026 Sandeep Bharadwaj Mannapur
+
+New code in this repository (the observability wiring under app/observability/,
+the collector/, evals/, drift/ and scripts/ directories, the Makefile, tests
+and documentation) is licensed under the Apache License, Version 2.0. See
+LICENSE.
+
+This product includes software derived from the Learning Accelerator
+(https://github.com/sandeepmb/freecodecamp-multi-agent-ai-system) by
+Sandeep Bharadwaj Mannapur, licensed under the MIT License. The MIT licence
+text is kept verbatim in LICENSE.upstream-learning-accelerator. The vendored
+files are the four agents under app/agents/, the graph under app/graph/, the
+MCP servers under app/mcp_servers/, the A2A quiz service and client under
+app/a2a_services/, the optional CrewAI study buddy under app/crewai_agent/,
+main.py, and the sample notes under study_materials/. They have been modified
+here: Langfuse wiring was replaced with Opik, business-logic spans were added,
+and a simulated student was introduced.
+
+This repository runs, but does not redistribute, Opik (Apache-2.0, Comet ML),
+the OpenTelemetry Collector (Apache-2.0), and Ollama (MIT). `make opik-up`
+clones the Opik repository at a pinned tag into .opik/, which is ignored by
+git and carries its own licence.
