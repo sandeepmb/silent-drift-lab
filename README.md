@@ -10,9 +10,6 @@ Built on the Learning Accelerator from [sandeepmb/freecodecamp-multi-agent-ai-sy
 
 Opik is an open-source LLM observability platform from Comet; this lab runs it self-hosted. OpenTelemetry is the vendor-neutral standard for traces. Everything runs locally on Ollama (a local model runner), so there are no API keys and no signup.
 
-<!-- TODO(demo-gif): record `make demo` (about 30 s, cut to the Act 3 verdict), save as docs/img/demo.gif. -->
-![demo](docs/img/demo.gif)
-
 ```bash
 git clone https://github.com/sandeepmb/silent-drift-lab && cd silent-drift-lab
 make setup                # .venv with pinned deps; needs uv, Python 3.11, Docker Desktop with 12 GB (8 GB works but is tight)
@@ -56,7 +53,7 @@ Observability for an agent system has three layers. Most teams have the first tw
 | Application | Latency, error rate, tokens, cost per request | The traces themselves; Opik's project dashboards |
 | Behavioural quality | Quiz score, grader agreement, groundedness of explanations, regeneration and abandonment, tool-call failures after generation | Feedback scores from code, online evaluation rules (`make rules`), the drift monitor (`make drift-demo`) |
 
-The drift lab injects six kinds of degradation, one at a time, and asks which layer notices. Each injection is selected with `DRIFT_SCENARIO`. The two right-hand columns are expectations from the talk's taxonomy; what the monitor measured goes in the benchmarks table once `make drift-demo` has run.
+The drift lab injects six kinds of degradation, one at a time, and asks which layer notices. Each injection is selected with `DRIFT_SCENARIO`. The two right-hand columns are expectations from the drift taxonomy; what the monitor measured goes in the benchmarks table once `make drift-demo` has run.
 
 | Drift | What changes | `DRIFT_SCENARIO` | Layers 1 and 2 (expected) | Layer 3 (expected) |
 |---|---|---|---|---|
@@ -128,7 +125,7 @@ The long form, with what each limit means for your system, is in [LIMITATIONS.md
 - **OpenTelemetry** and its GenAI semantic conventions define the span attributes the `otel` track emits.
 - **LangGraph**, by LangChain, is the agent framework; the Opik LangChain callback is what makes the native track one line.
 - **The Learning Accelerator** by Sandeep Bharadwaj Mannapur ([sandeepmb/freecodecamp-multi-agent-ai-system](https://github.com/sandeepmb/freecodecamp-multi-agent-ai-system), MIT) is the application under observation; the four agents, the MCP servers and the A2A service are vendored from it with their licence kept ([NOTICE](NOTICE)).
-- The lab is the companion to a freeCodeCamp handbook and to the MLOps World 2026 talk *Silent Drift: Why Your LLM's Quality Is Degrading and Your Metrics Can't See It* (16 November 2026). <!-- TODO(links): add the handbook URL and the talk page once published. -->
+- The lab is the companion to a freeCodeCamp handbook. <!-- TODO(links): add the handbook URL once published -->
 
 Pinned versions, the same ones the handbook was written against: Opik 2.2.96 (server and SDK), LangGraph 1.1.0, langchain-core 1.0.0, langchain-ollama 1.0.0, `qwen2.5:7b`, Python 3.11. Opik releases often; if the UI looks different on a newer version, that is why.
 

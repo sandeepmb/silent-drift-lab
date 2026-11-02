@@ -9,9 +9,8 @@ Six months, kept modest. One maintainer, evenings and weekends. Dates are target
 - Every number in the README produced by a `make` target and listed in `docs/reproducing.md`.
 - CI green on Python 3.11 and 3.12; Dependabot on.
 
-## 0.2.0 — November 2026: the talk
+## 0.2.0 — November 2026
 
-- The drift figure on the MLOps World slides comes from `make drift-demo`, not from an illustration.
 - Demo capture in the README.
 - The eval gate (`make evals-test`) runs on a self-hosted runner with Ollama, on a schedule.
 - Good-first-issues opened and triaged.

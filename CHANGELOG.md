@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [0.1.0] - unreleased
 
-First public version. Companion to the freeCodeCamp handbook and the MLOps World 2026 talk *Silent Drift*.
+First public version. Companion to the freeCodeCamp handbook.
 
 ### Added
 

@@ -39,7 +39,7 @@ SCENARIOS: dict[str, str] = {
     "verbosity": "Behavioural drift: lenient grader + verbose, hedging explainer; scores may rise, shape changes.",
 }
 
-# Families the talk's taxonomy assigns each scenario to (used in the report).
+# Families the drift taxonomy assigns each scenario to (used in the report).
 TAXONOMY: dict[str, str] = {
     "model_swap": "model drift",
     "prompt_mutation": "prompt & context drift",
